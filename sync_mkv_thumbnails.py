@@ -1,6 +1,7 @@
 """
 Tool 2: Optimized MKV Season Thumbnail Replacer & Compressor
 Finds season thumbnails (e.g. season01-thumb.jpg), optimizes once, and fast-copies to episode .mkv files.
+Formatted to strict 211-character table output with 80-character video file name column.
 """
 
 import os
@@ -119,11 +120,15 @@ def run_standalone() -> None:
         quality=opts.get("jpeg_quality", 88),
     )
 
+    # Total width = 211 chars. Video File Name column = 80 chars.
+    # 16 + 36 + 80 + 44 + 20 = 196 content + 15 border chars = 211 total width
+    col_widths = [16, 36, 80, 44, 20]
+
     print_table_report(
         title="MKV Thumbnail Sync Report",
         headers=["Season", "Master Thumbnail", "Video File (.mkv)", "Created Thumbnail", "Status"],
         rows=rows,
-        col_widths=[12, 22, 34, 34, 14],
+        col_widths=col_widths,
     )
 
 

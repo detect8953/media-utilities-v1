@@ -1,6 +1,6 @@
 """
 Optimized Configuration & Utilities for Media Processing Suite.
-Handles JSON persistence, fast I/O prompts, progress rendering, and tabular outputs.
+Handles JSON persistence, fast I/O prompts, progress rendering, and tabular outputs with strict column alignment (Total width = 211, filename column = 80).
 """
 
 import json
@@ -59,7 +59,7 @@ def save_config(config_data: Dict[str, Any]) -> None:
 
 def prompt_for_directory(prompt_label: str, default_path: str) -> str:
     """Fast directory prompt with quote sanitization and path validation."""
-    print("-" * 72)
+    print("-" * 211)
     print(f"📁 {prompt_label}")
     print(f"   Default: {default_path}")
     user_input = input("   Enter path (or press Enter to accept default):\n   > ").strip()
@@ -83,7 +83,7 @@ def prompt_for_dry_run() -> bool:
     return choice in ("y", "yes", "true", "1")
 
 
-def print_progress(current: int, total: int, prefix: str = "Processing", length: int = 40) -> None:
+def print_progress(current: int, total: int, prefix: str = "Processing", length: int = 50) -> None:
     """Memory-efficient single-line progress indicator."""
     if total == 0:
         return
@@ -96,21 +96,32 @@ def print_progress(current: int, total: int, prefix: str = "Processing", length:
         print()
 
 
-def print_table_report(title: str, headers: List[str], rows: List[List[str]], col_widths: Optional[List[int]] = None) -> None:
-    """Unified formatted ASCII table renderer."""
+def print_table_report(title: str, headers: List[str], rows: List[List[str]], col_widths: List[int]) -> None:
+    """
+    Unified formatted ASCII table renderer with strict column alignment.
+    Guarantees total line width = 211 chars.
+    """
     if not rows:
         return
-    widths = col_widths or [max(len(str(r[i])) for r in rows + [headers]) + 2 for i in range(len(headers))]
-    separator = "-" * (sum(widths) + len(widths) * 3 + 1)
-    
-    print(f"\n{'=' * len(separator)}")
+
+    total_width = 211
+    top_border = "=" * total_width
+    sub_border = "-" * total_width
+
+    print(f"\n{top_border}")
     print(f"  {title.upper()}")
-    print(f"{'=' * len(separator)}")
-    
-    header_str = " | ".join(f"{h:<{w}}" for h, w in zip(headers, widths))
-    print(f"| {header_str} |")
-    print(separator)
-    for r in rows:
-        row_str = " | ".join(f"{str(val):<{w}}" for val, w in zip(r, widths))
-        print(f"| {row_str} |")
-    print(f"{separator}\n")
+    print(top_border)
+
+    # Render Header
+    header_cells = [f"{str(h)[:w]:<{w}}" for h, w in zip(headers, col_widths)]
+    header_str = "| " + " | ".join(header_cells) + " |"
+    print(header_str[:total_width])
+    print(sub_border)
+
+    # Render Rows
+    for row in rows:
+        row_cells = [f"{str(val)[:w]:<{w}}" for val, w in zip(row, col_widths)]
+        row_str = "| " + " | ".join(row_cells) + " |"
+        print(row_str[:total_width])
+
+    print(f"{sub_border}\n")

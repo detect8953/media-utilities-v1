@@ -4,6 +4,7 @@ Optimizations:
   1. Single-pass composite bounding box calculation (eliminates intermediate crop buffers).
   2. Fast os.scandir season traversal.
   3. Parallel multithreaded image processing pool.
+  4. Strict 211-character table output with 80-character filename column alignment.
 """
 
 import os
@@ -194,11 +195,16 @@ def run_standalone() -> None:
         ]
         for r in results
     ]
+
+    # Total width = 211 chars. Filename column = 80 chars.
+    # 16 + 80 + 22 + 24 + 26 + 22 = 190 content + 21 border chars = 211 total width
+    col_widths = [16, 80, 22, 24, 26, 22]
+
     print_table_report(
         title="Artwork 16:9 Auto-Crop Summary",
         headers=["Season", "Filename", "Border Crop", "16:9 Aspect Fix", "Resolution", "Status"],
         rows=rows,
-        col_widths=[12, 34, 18, 18, 22, 18],
+        col_widths=col_widths,
     )
 
 
