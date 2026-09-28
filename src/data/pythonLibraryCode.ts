@@ -2063,6 +2063,149 @@ if __name__ == "__main__":
 `,
   },
   {
+    path: "run_artwork_processor.py",
+    filename: "run_artwork_processor.py",
+    category: "examples",
+    description: "Interactive runner prompting for series folder, executing border removal & 16:9 1080p resize.",
+    code: `"""
+Run Script: TV Series & Season Artwork 16:9 Auto-Crop Processor
+Run directly in PyCharm, VS Code, or Terminal:
+    python run_artwork_processor.py
+"""
+
+import os
+import sys
+from pytoolkit.images import process_images, print_processing_results
+
+
+def main():
+    print("=" * 75)
+    print("  PyToolkit: TV Series & Season Artwork 16:9 Auto-Crop Engine")
+    print("=" * 75)
+
+    default_path = r"F:\\MediaStore\\TV\\Series\\Slow Horses (2022)"
+    
+    print(f"\\nDefault Target: {default_path}")
+    prompt_text = "Enter target series directory (or press Enter for default):\\n> "
+    user_input = input(prompt_text).strip()
+    target_dir = user_input if user_input else default_path
+
+    # Clean quotes if folder was dragged-and-dropped into terminal
+    target_dir = target_dir.strip('"').strip("'")
+
+    if not os.path.isdir(target_dir):
+        print(f"\\n❌ Error: Directory '{target_dir}' does not exist!")
+        sys.exit(1)
+
+    print("\\nExecution Mode:")
+    print("  [1] Live Processing (Modifies files on disk)")
+    print("  [2] Dry-Run Simulation (Analyze dimensions without modifying)")
+    mode_input = input("Select mode [1/2, default: 1]: ").strip()
+    dry_run = mode_input == "2"
+
+    print(f"\\n📂 Target: {target_dir}")
+    print(f"⚙️ Mode:   {'DRY RUN (Preview only)' if dry_run else 'LIVE PROCESSING'}\\n")
+
+    results = process_images(
+        target_dir=target_dir,
+        dry_run=dry_run,
+        season_pattern=r"Season \\d{2}$",
+        target_resolution=(1920, 1080),
+        threshold=5
+    )
+
+    print("\\n" + "=" * 75)
+    print("  PROCESSING RESULTS")
+    print("=" * 75)
+    print_processing_results(results)
+
+
+if __name__ == "__main__":
+    main()
+`,
+  },
+  {
+    path: "run_gui_folder_picker.py",
+    filename: "run_gui_folder_picker.py",
+    category: "examples",
+    description: "GUI Runner with visual Windows/macOS folder chooser dialog.",
+    code: `"""
+Run Script: Graphical Folder Chooser
+Opens native OS directory picker dialog, then processes artwork.
+Run: python run_gui_folder_picker.py
+"""
+
+import sys
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from pytoolkit.images import process_images, print_processing_results
+
+
+def main():
+    # Hide Tkinter background root
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+
+    print("Opening folder selection window...")
+    target_dir = filedialog.askdirectory(
+        title="Select TV Show / Series Directory",
+        initialdir=r"F:\\MediaStore\\TV\\Series" if os.path.exists(r"F:\\MediaStore\\TV\\Series") else "."
+    )
+
+    if not target_dir:
+        print("No directory selected. Exiting.")
+        sys.exit(0)
+
+    dry_run_response = messagebox.askyesno(
+        "Execution Mode",
+        f"Selected Directory:\\n{target_dir}\\n\\nWould you like to run in DRY-RUN simulation mode first?"
+    )
+
+    print(f"\\nScanning: {target_dir}")
+    print(f"Mode: {'DRY RUN' if dry_run_response else 'LIVE PROCESSING'}\\n")
+
+    results = process_images(
+        target_dir=target_dir,
+        dry_run=dry_run_response,
+        season_pattern=r"Season \\d{2}$",
+        target_resolution=(1920, 1080),
+        threshold=5
+    )
+
+    print_processing_results(results)
+    messagebox.showinfo("Complete", f"Processed {len(results)} episode images successfully!")
+
+
+if __name__ == "__main__":
+    main()
+`,
+  },
+  {
+    path: "run_artwork.bat",
+    filename: "run_artwork.bat",
+    category: "examples",
+    description: "Windows double-click launcher batch script.",
+    code: `@echo off
+title PyToolkit Artwork 16:9 Processor
+echo Starting PyToolkit TV Artwork 16:9 Auto-Crop Engine...
+python run_artwork_processor.py
+pause
+`,
+  },
+  {
+    path: "run_artwork.sh",
+    filename: "run_artwork.sh",
+    category: "examples",
+    description: "Linux / macOS double-click launcher bash script.",
+    code: `#!/usr/bin/env bash
+echo "Starting PyToolkit TV Artwork 16:9 Auto-Crop Engine..."
+python3 run_artwork_processor.py
+read -p "Press Enter to exit..."
+`,
+  },
+  {
     path: "examples/demo_quickstart.py",
     filename: "demo_quickstart.py",
     category: "examples",
