@@ -1,0 +1,6 @@
+{
+  "name": "PyUtilCraft - Python File, Directory & Image Utility Suite",
+  "description": "Production-grade Python utility library with modular procedures for directory management, atomic file operations, batch renaming, hashing, and image transformations, with an interactive testing workbench.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
