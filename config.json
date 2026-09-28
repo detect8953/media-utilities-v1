@@ -1,0 +1,22 @@
+{
+  "paths": {
+    "default_tv_series_dir": "F:\\MediaStore\\TV\\Series\\Slow Horses (2022)",
+    "default_reality_series_dir": "E:\\MediaStore\\TV\\Reality\\Survivor (2000)"
+  },
+  "crop_and_resize": {
+    "target_width": 1920,
+    "target_height": 1080,
+    "target_aspect_ratio": 1.7777777778,
+    "black_threshold": 5,
+    "season_folder_regex": "^Season \\d{2}$",
+    "supported_image_extensions": [".jpg", ".jpeg", ".png", ".webp"],
+    "max_workers": 8
+  },
+  "thumbnail_replacement": {
+    "max_width": 1920,
+    "max_height": 1080,
+    "video_extensions": [".mkv", ".mp4"],
+    "thumb_suffix": "-thumb.jpg",
+    "jpeg_quality": 88
+  }
+}

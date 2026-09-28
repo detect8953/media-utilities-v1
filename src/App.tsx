@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import JSZip from 'jszip';
 import {
   Tv,
   Film,
@@ -17,7 +18,10 @@ import {
   FileCode,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  HelpCircle,
+  ExternalLink,
+  Cpu
 } from 'lucide-react';
 import { PYTHON_LIBRARY_FILES } from './data/pythonLibraryCode';
 
@@ -33,13 +37,14 @@ interface ConfigState {
     black_threshold: number;
     season_folder_regex: string;
     supported_image_extensions: string[];
+    max_workers: number;
   };
   thumbnail_replacement: {
     max_width: number;
     max_height: number;
-    ffmpeg_qscale: number;
     video_extensions: string[];
     thumb_suffix: string;
+    jpeg_quality: number;
   };
 }
 
@@ -55,13 +60,14 @@ const DEFAULT_CONFIG: ConfigState = {
     black_threshold: 5,
     season_folder_regex: '^Season \\d{2}$',
     supported_image_extensions: ['.jpg', '.jpeg', '.png', '.webp'],
+    max_workers: 8,
   },
   thumbnail_replacement: {
     max_width: 1920,
     max_height: 1080,
-    ffmpeg_qscale: 4,
     video_extensions: ['.mkv', '.mp4'],
     thumb_suffix: '-thumb.jpg',
+    jpeg_quality: 88,
   },
 };
 
@@ -107,14 +113,14 @@ const SAMPLE_ARTWORK_RESULTS = [
 const SAMPLE_THUMBNAIL_RESULTS = [
   {
     season: 'Season 01',
-    sourceThumb: 'season01-thumb.jpg (2400x1350 → 1920x1080, q=4)',
+    sourceThumb: 'season01-thumb.jpg (2400x1350 → 1920x1080)',
     mkvFile: 'Survivor - S01E01 - Marooned.mkv',
     targetThumb: 'Survivor - S01E01 - Marooned-thumb.jpg',
     status: 'Synced',
   },
   {
     season: 'Season 01',
-    sourceThumb: 'season01-thumb.jpg (2400x1350 → 1920x1080, q=4)',
+    sourceThumb: 'season01-thumb.jpg (2400x1350 → 1920x1080)',
     mkvFile: 'Survivor - S01E02 - The Generation Gap.mkv',
     targetThumb: 'Survivor - S01E02 - The Generation Gap-thumb.jpg',
     status: 'Synced',
@@ -136,7 +142,7 @@ const SAMPLE_THUMBNAIL_RESULTS = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'manager' | 'crop_tool' | 'thumb_tool' | 'config' | 'code'>('manager');
+  const [activeTab, setActiveTab] = useState<'manager' | 'crop_tool' | 'thumb_tool' | 'config' | 'code' | 'pycharm'>('manager');
   const [config, setConfig] = useState<ConfigState>(DEFAULT_CONFIG);
 
   // Tool 1 state
@@ -153,9 +159,10 @@ export default function App() {
   const [realityProgress, setRealityProgress] = useState<number>(100);
 
   // Active Code Viewer
-  const [selectedScriptPath, setSelectedScriptPath] = useState<string>('media_artwork_manager.py');
+  const [selectedScriptPath, setSelectedScriptPath] = useState<string>('crop_and_resize_artwork.py');
   const [copiedFile, setCopiedFile] = useState<boolean>(false);
   const [copiedConfig, setCopiedConfig] = useState<boolean>(false);
+  const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
 
   const handleRunTool1 = async () => {
     setTvRunning(true);
@@ -192,6 +199,108 @@ export default function App() {
     setTimeout(() => setCopiedConfig(false), 2000);
   };
 
+  const handleDownloadPyCharmZip = async () => {
+    setIsDownloadingZip(true);
+    try {
+      const zip = new JSZip();
+
+      // Add all Python files and configs
+      PYTHON_LIBRARY_FILES.forEach((f) => {
+        zip.file(f.path, f.code);
+      });
+
+      // Add requirements.txt
+      zip.file('requirements.txt', 'Pillow>=10.0.0\n');
+
+      // Add PyCharm .idea Run Configurations
+      zip.file(
+        '.idea/runConfigurations/1___16_9_Artwork_Auto_Crop.xml',
+        `<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="1. 16:9 Artwork Auto-Crop" type="PythonConfigurationType" factoryName="Python">
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs><env name="PYTHONUNBUFFERED" value="1" /></envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/crop_and_resize_artwork.py" />
+    <option name="PARAMETERS" value="" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="true" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>`
+      );
+
+      zip.file(
+        '.idea/runConfigurations/2___MKV_Thumbnail_Sync.xml',
+        `<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="2. MKV Thumbnail Sync" type="PythonConfigurationType" factoryName="Python">
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs><env name="PYTHONUNBUFFERED" value="1" /></envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/sync_mkv_thumbnails.py" />
+    <option name="PARAMETERS" value="" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="true" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>`
+      );
+
+      zip.file(
+        '.idea/runConfigurations/3___Media_Artwork_Manager__Menu_.xml',
+        `<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="3. Media Artwork Manager (Menu)" type="PythonConfigurationType" factoryName="Python">
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs><env name="PYTHONUNBUFFERED" value="1" /></envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/media_artwork_manager.py" />
+    <option name="PARAMETERS" value="" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="true" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>`
+      );
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'PyToolkit_PyCharm_Project.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Download error:', e);
+    } finally {
+      setIsDownloadingZip(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950">
       {/* Top Navigation Bar */}
@@ -205,76 +314,199 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base tracking-tight text-white font-mono">PyToolkit</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-semibold">
-                  v1.2.0 Media Suite
+                  v1.2.0 PyCharm Ready
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">TV Artwork & MKV Thumbnail Automation Suite</p>
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          <nav className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
+          {/* Quick Actions & Tab Navigation */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setActiveTab('manager')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === 'manager'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              onClick={handleDownloadPyCharmZip}
+              disabled={isDownloadingZip}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-cyan-500/20 transition-all active:scale-95"
             >
-              <Terminal className="w-3.5 h-3.5" />
-              Unified Menu
+              <Download className="w-3.5 h-3.5" />
+              {isDownloadingZip ? 'Zipping...' : 'Download PyCharm Project (.zip)'}
             </button>
-            <button
-              onClick={() => setActiveTab('crop_tool')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === 'crop_tool'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Tv className="w-3.5 h-3.5" />
-              16:9 Border Auto-Crop
-            </button>
-            <button
-              onClick={() => setActiveTab('thumb_tool')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === 'thumb_tool'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Film className="w-3.5 h-3.5" />
-              MKV Thumbnail Sync
-            </button>
-            <button
-              onClick={() => setActiveTab('config')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === 'config'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5" />
-              config.json
-            </button>
-            <button
-              onClick={() => setActiveTab('code')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === 'code'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Code2 className="w-3.5 h-3.5" />
-              Python Scripts
-            </button>
-          </nav>
+
+            <nav className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
+              <button
+                onClick={() => setActiveTab('manager')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeTab === 'manager'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Terminal className="w-3.5 h-3.5" />
+                Unified Menu
+              </button>
+              <button
+                onClick={() => setActiveTab('crop_tool')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeTab === 'crop_tool'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Tv className="w-3.5 h-3.5" />
+                16:9 Border Crop
+              </button>
+              <button
+                onClick={() => setActiveTab('thumb_tool')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeTab === 'thumb_tool'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Film className="w-3.5 h-3.5" />
+                MKV Thumb Sync
+              </button>
+              <button
+                onClick={() => setActiveTab('pycharm')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeTab === 'pycharm'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+                PyCharm Guide
+              </button>
+              <button
+                onClick={() => setActiveTab('config')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeTab === 'config'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                config.json
+              </button>
+              <button
+                onClick={() => setActiveTab('code')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeTab === 'code'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                Python Source
+              </button>
+            </nav>
+          </div>
         </div>
       </header>
 
       {/* Main Body */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+        {/* PYCHARM RUN GUIDE TAB */}
+        {activeTab === 'pycharm' && (
+          <div className="space-y-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
+                    <span>PyCharm Integration</span>
+                    <span>·</span>
+                    <span>Ready-to-Run Setup</span>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mt-1">
+                    How to Run Any Tool Directly in PyCharm
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    All `.py` files and pre-configured `.idea/runConfigurations` are already packaged.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleDownloadPyCharmZip}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 text-xs font-bold rounded-xl shadow-md transition-all active:scale-95"
+                >
+                  <Download className="w-4 h-4" />
+                  Download PyCharm Bundle (.zip)
+                </button>
+              </div>
+
+              {/* Step by Step Visual Guide */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Step 1 */}
+                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold font-mono text-sm">
+                    1
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-200">Open Folder in PyCharm</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Extract the downloaded zip, open PyCharm, and click <strong>File → Open...</strong> and select the unzipped project folder.
+                  </p>
+                  <div className="p-2.5 bg-slate-900 rounded-xl font-mono text-[11px] text-cyan-300 border border-slate-800">
+                    pip install Pillow
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold font-mono text-sm">
+                    2
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-200">Pre-Built Run Configurations</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Look at the <strong>top-right toolbar</strong> in PyCharm. The drop-down contains all 3 pre-built run targets:
+                  </p>
+                  <div className="space-y-1 text-[11px] font-mono text-slate-300 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                    <div>▶ 1. 16:9 Artwork Auto-Crop</div>
+                    <div>▶ 2. MKV Thumbnail Sync</div>
+                    <div>▶ 3. Media Artwork Manager (Menu)</div>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold font-mono text-sm">
+                    3
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-200">Direct Right-Click Run</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Alternatively, expand the project tree on the left, right-click any <code className="text-cyan-400">.py</code> file and select:
+                  </p>
+                  <div className="p-2.5 bg-slate-900 rounded-xl font-mono text-[11px] text-emerald-300 border border-slate-800">
+                    Run 'crop_and_resize_artwork' <br />
+                    <span className="text-slate-500">(Shortcut: Shift + F10)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct Python Files List */}
+              <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  Files Included in Your Project Root
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    { file: 'crop_and_resize_artwork.py', desc: 'Tool 1 (16:9 Crop & 1080p Resizer)' },
+                    { file: 'sync_mkv_thumbnails.py', desc: 'Tool 2 (MKV Season Thumbnail Replacer)' },
+                    { file: 'media_artwork_manager.py', desc: 'Interactive Menu Launcher' },
+                    { file: 'media_config.py', desc: 'Config Loader & Sanitizer' },
+                    { file: 'config.json', desc: 'Default Directories & Targets' },
+                    { file: '.idea/runConfigurations/*.xml', desc: 'Auto-detected PyCharm Run Buttons' },
+                  ].map((item) => (
+                    <div key={item.file} className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1">
+                      <div className="font-mono text-xs font-bold text-cyan-400">{item.file}</div>
+                      <div className="text-[11px] text-slate-400">{item.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: UNIFIED MENU MANAGER */}
         {activeTab === 'manager' && (
           <div className="space-y-6">
@@ -302,7 +534,7 @@ export default function App() {
                   </div>
                   <h3 className="text-lg font-bold text-white">1. 16:9 Border Auto-Crop & 1080p Resizer</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Scans TV Season folders (<code className="text-cyan-300">Season \d&#123;2&#125;$</code>), strips letterbox/pillarbox bars using luminance thresholding, enforces 16:9 ratio, and resizes to 1920×1080.
+                    Scans TV Season folders (<code className="text-cyan-300">Season \d&#123;2&#125;$</code>), strips letterbox/pillarbox bars in a single fast pass, enforces 16:9 ratio, and resizes to 1920×1080 with multithreaded workers.
                   </p>
                   <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400">
                     <span className="text-slate-500">Runner:</span> crop_and_resize_artwork.py
@@ -325,7 +557,7 @@ export default function App() {
                   </div>
                   <h3 className="text-lg font-bold text-white">2. MKV Season Thumbnail Replacer</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Finds normalized season thumbnails (<code className="text-blue-300">season01-thumb.jpg</code>), optimizes & downscales to 1080p, and propagates them to match all episode <code className="text-blue-300">.mkv</code> files.
+                    Finds normalized season thumbnails (<code className="text-blue-300">season01-thumb.jpg</code>), downscales them once per folder, and fast-copies to match all episode <code className="text-blue-300">.mkv</code> files.
                   </p>
                   <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400">
                     <span className="text-slate-500">Runner:</span> sync_mkv_thumbnails.py
@@ -363,14 +595,14 @@ export default function App() {
 ----------------------------------------------------------------------
 Enter your choice [0-3]: 1
 
-Select TV Series Folder for 16:9 Auto-Crop
-Default: ${config.paths.default_tv_series_dir}
-Enter path (or press Enter to use default):
-> 
+📁 TV Series Folder for 16:9 Auto-Crop
+   Default: ${config.paths.default_tv_series_dir}
+   Enter path (or press Enter to accept default):
+   > 
 
-Run in Dry-Run simulation mode? [Y/n] (default: No): n
-🚀 Found 4 episode images. Processing...
-Progress |████████████████████████████████████████| 100.0% Complete`}
+⚙️  Run in Dry-Run simulation mode? [y/N] (default: No): n
+🚀 Found 4 episode images. Executing with 8 worker threads...
+Progress |████████████████████████████████████████| 100.0% (4/4)`}
               </pre>
             </div>
           </div>
@@ -742,9 +974,9 @@ Progress |███████████████████████�
             <div className="p-4 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 overflow-x-auto">
                 {[
-                  'media_artwork_manager.py',
                   'crop_and_resize_artwork.py',
                   'sync_mkv_thumbnails.py',
+                  'media_artwork_manager.py',
                   'media_config.py',
                   'config.json',
                   'run.bat',
