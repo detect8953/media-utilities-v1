@@ -2063,146 +2063,581 @@ if __name__ == "__main__":
 `,
   },
   {
-    path: "run_artwork_processor.py",
-    filename: "run_artwork_processor.py",
-    category: "examples",
-    description: "Interactive runner prompting for series folder, executing border removal & 16:9 1080p resize.",
+    path: "config.json",
+    filename: "config.json",
+    category: "core",
+    description: "Central configuration file for paths, resolution targets, thresholding, and regex patterns.",
+    code: `{
+  "paths": {
+    "default_tv_series_dir": "F:\\\\MediaStore\\\\TV\\\\Series\\\\Slow Horses (2022)",
+    "default_reality_series_dir": "E:\\\\MediaStore\\\\TV\\\\Reality\\\\Survivor (2000)"
+  },
+  "crop_and_resize": {
+    "target_width": 1920,
+    "target_height": 1080,
+    "target_aspect_ratio": 1.7777777778,
+    "black_threshold": 5,
+    "season_folder_regex": "^Season \\\\d{2}$",
+    "supported_image_extensions": [".jpg", ".jpeg", ".png", ".webp"]
+  },
+  "thumbnail_replacement": {
+    "max_width": 1920,
+    "max_height": 1080,
+    "ffmpeg_qscale": 4,
+    "video_extensions": [".mkv", ".mp4"],
+    "thumb_suffix": "-thumb.jpg"
+  }
+}
+`,
+  },
+  {
+    path: "media_config.py",
+    filename: "media_config.py",
+    category: "modules",
+    description: "High-performance configuration loader, input sanitizer, and shared progress/table utilities.",
     code: `"""
-Run Script: TV Series & Season Artwork 16:9 Auto-Crop Processor
-Run directly in PyCharm, VS Code, or Terminal:
-    python run_artwork_processor.py
+Optimized Configuration & Utilities for Media Processing Suite.
+Handles JSON persistence, fast I/O prompts, progress rendering, and tabular outputs.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "paths": {
+        "default_tv_series_dir": r"F:\\MediaStore\\TV\\Series\\Slow Horses (2022)",
+        "default_reality_series_dir": r"E:\\MediaStore\\TV\\Reality\\Survivor (2000)",
+    },
+    "crop_and_resize": {
+        "target_width": 1920,
+        "target_height": 1080,
+        "target_aspect_ratio": 16 / 9,
+        "black_threshold": 5,
+        "season_folder_regex": r"^Season \\d{2}$",
+        "supported_image_extensions": [".jpg", ".jpeg", ".png", ".webp"],
+        "max_workers": 8,
+    },
+    "thumbnail_replacement": {
+        "max_width": 1920,
+        "max_height": 1080,
+        "video_extensions": [".mkv", ".mp4"],
+        "thumb_suffix": "-thumb.jpg",
+        "jpeg_quality": 88,
+    },
+}
+
+
+def load_config() -> Dict[str, Any]:
+    """Load configuration from disk with fallback to defaults."""
+    if not CONFIG_FILE.exists():
+        save_config(DEFAULT_CONFIG)
+        return DEFAULT_CONFIG
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as err:
+        print(f"⚠️ Warning: Could not read {CONFIG_FILE} ({err}). Using defaults.")
+        return DEFAULT_CONFIG
+
+
+def save_config(config_data: Dict[str, Any]) -> None:
+    """Save updated configuration to disk."""
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=2)
+    except Exception as err:
+        print(f"⚠️ Warning: Failed to save config to {CONFIG_FILE}: {err}")
+
+
+def prompt_for_directory(prompt_label: str, default_path: str) -> str:
+    """Fast directory prompt with quote sanitization and path validation."""
+    print("-" * 72)
+    print(f"📁 {prompt_label}")
+    print(f"   Default: {default_path}")
+    user_input = input("   Enter path (or press Enter to accept default):\\n   > ").strip()
+
+    target = user_input if user_input else default_path
+    target = target.strip('"').strip("'")
+
+    if not os.path.isdir(target):
+        print(f"\\n❌ Error: Directory '{target}' does not exist.")
+        retry = input("Re-enter path? [Y/n]: ").strip().lower()
+        if retry in ("y", "yes", ""):
+            return prompt_for_directory(prompt_label, default_path)
+        raise FileNotFoundError(f"Directory not found: {target}")
+
+    return os.path.abspath(target)
+
+
+def prompt_for_dry_run() -> bool:
+    """Interactive mode toggle."""
+    choice = input("\\n⚙️  Run in Dry-Run simulation mode? [y/N] (default: No): ").strip().lower()
+    return choice in ("y", "yes", "true", "1")
+
+
+def print_progress(current: int, total: int, prefix: str = "Processing", length: int = 40) -> None:
+    """Memory-efficient single-line progress indicator."""
+    if total == 0:
+        return
+    pct = 100.0 * current / total
+    filled = int(length * current // total)
+    bar = "█" * filled + "-" * (length - filled)
+    sys.stdout.write(f"\\r{prefix} |{bar}| {pct:5.1f}% ({current}/{total})")
+    sys.stdout.flush()
+    if current >= total:
+        print()
+
+
+def print_table_report(title: str, headers: List[str], rows: List[List[str]], col_widths: Optional[List[int]] = None) -> None:
+    """Unified formatted ASCII table renderer."""
+    if not rows:
+        return
+    widths = col_widths or [max(len(str(r[i])) for r in rows + [headers]) + 2 for i in range(len(headers))]
+    separator = "-" * (sum(widths) + len(widths) * 3 + 1)
+    
+    print(f"\\n{'=' * len(separator)}")
+    print(f"  {title.upper()}")
+    print(f"{'=' * len(separator)}")
+    
+    header_str = " | ".join(f"{h:<{w}}" for h, w in zip(headers, widths))
+    print(f"| {header_str} |")
+    print(separator)
+    for r in rows:
+        row_str = " | ".join(f"{str(val):<{w}}" for val, w in zip(r, widths))
+        print(f"| {row_str} |")
+    print(f"{separator}\\n")
+`,
+  },
+  {
+    path: "crop_and_resize_artwork.py",
+    filename: "crop_and_resize_artwork.py",
+    category: "examples",
+    description: "Tool 1: High-Performance 16:9 Border Auto-Crop & 1080p Resizer with single-pass crop & multithreading.",
+    code: `"""
+Tool 1: High-Performance 16:9 Border Auto-Crop & 1080p Resizer
+Optimizations:
+  1. Single-pass composite bounding box calculation (eliminates intermediate crop buffers).
+  2. Fast os.scandir season traversal.
+  3. Parallel multithreaded image processing pool.
 """
 
 import os
-import sys
-from pytoolkit.images import process_images, print_processing_results
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from PIL import Image
+
+from media_config import (
+    load_config,
+    prompt_for_directory,
+    prompt_for_dry_run,
+    print_progress,
+    print_table_report,
+)
 
 
-def main():
-    print("=" * 75)
-    print("  PyToolkit: TV Series & Season Artwork 16:9 Auto-Crop Engine")
-    print("=" * 75)
-
-    default_path = r"F:\\MediaStore\\TV\\Series\\Slow Horses (2022)"
+def calculate_single_pass_crop(
+    image: Image.Image,
+    threshold: int = 5,
+    target_ratio: float = 16 / 9,
+) -> Tuple[Tuple[int, int, int, int], str, str]:
+    """
+    Computes black border mask and 16:9 aspect crop into ONE composite bounding box.
+    Returns: ((left, top, right, bottom), crop_description, aspect_description)
+    """
+    width, height = image.size
     
-    print(f"\\nDefault Target: {default_path}")
-    prompt_text = "Enter target series directory (or press Enter for default):\\n> "
-    user_input = input(prompt_text).strip()
-    target_dir = user_input if user_input else default_path
+    # 1. Black border detection
+    gray = image.convert("L")
+    mask = gray.point(lambda p: 255 if p > threshold else 0)
+    bbox = mask.getbbox()
+    
+    if not bbox or bbox == (0, 0, width, height):
+        bx0, by0, bx1, by1 = 0, 0, width, height
+        crop_desc = "Not Needed"
+    else:
+        bx0, by0, bx1, by1 = bbox
+        crop_desc = f"{bx0}:{by0}:{bx1}:{by1}"
 
-    # Clean quotes if folder was dragged-and-dropped into terminal
-    target_dir = target_dir.strip('"').strip("'")
+    bw = bx1 - bx0
+    bh = by1 - by0
+    current_ratio = bw / bh
 
-    if not os.path.isdir(target_dir):
-        print(f"\\n❌ Error: Directory '{target_dir}' does not exist!")
-        sys.exit(1)
+    # 2. 16:9 aspect adjustment
+    if abs(current_ratio - target_ratio) < 0.01:
+        aspect_desc = "Not Needed"
+        return (bx0, by0, bx1, by1), crop_desc, aspect_desc
 
-    print("\\nExecution Mode:")
-    print("  [1] Live Processing (Modifies files on disk)")
-    print("  [2] Dry-Run Simulation (Analyze dimensions without modifying)")
-    mode_input = input("Select mode [1/2, default: 1]: ").strip()
-    dry_run = mode_input == "2"
+    if current_ratio > target_ratio:
+        new_w = int(bh * target_ratio)
+        excess = bw - new_w
+        left_pad = excess // 2
+        right_pad = excess - left_pad
+        final_box = (bx0 + left_pad, by0, bx1 - right_pad, by1)
+        aspect_desc = f"L: {left_pad}px | R: {right_pad}px"
+    else:
+        new_h = int(bw / target_ratio)
+        excess = bh - new_h
+        top_pad = excess // 2
+        bottom_pad = excess - top_pad
+        final_box = (bx0, by0 + top_pad, bx1, by1 - bottom_pad)
+        aspect_desc = f"T: {top_pad}px | B: {bottom_pad}px"
 
-    print(f"\\n📂 Target: {target_dir}")
-    print(f"⚙️ Mode:   {'DRY RUN (Preview only)' if dry_run else 'LIVE PROCESSING'}\\n")
+    return final_box, crop_desc, aspect_desc
 
-    results = process_images(
+
+def process_single_image(
+    file_path: Path,
+    season_name: str,
+    target_resolution: Tuple[int, int],
+    threshold: int,
+    dry_run: bool,
+) -> Dict[str, Any]:
+    """Process a single image file efficiently."""
+    try:
+        with Image.open(file_path) as img:
+            orig_size = img.size
+            crop_box, crop_v, asp_v = calculate_single_pass_crop(img, threshold=threshold)
+            
+            needs_crop = crop_box != (0, 0, orig_size[0], orig_size[1])
+            needs_resize = orig_size != target_resolution
+
+            if not dry_run and (needs_crop or needs_resize):
+                cropped = img.crop(crop_box) if needs_crop else img
+                final_img = cropped.resize(target_resolution, Image.Resampling.LANCZOS)
+                final_img.save(file_path, quality=88, optimize=False)
+
+            return {
+                "season": season_name,
+                "filename": file_path.name,
+                "original_size": f"{orig_size[0]}x{orig_size[1]}",
+                "final_size": f"{target_resolution[0]}x{target_resolution[1]}",
+                "crop_values": crop_v,
+                "aspect_values": asp_v,
+                "status": "Modified" if (needs_crop or needs_resize) else "Already 16:9 1080p",
+            }
+    except Exception as err:
+        return {
+            "season": season_name,
+            "filename": file_path.name,
+            "error": str(err),
+            "status": "Error",
+        }
+
+
+def process_series_artwork(
+    target_dir: str,
+    dry_run: bool = False,
+    season_pattern: str = r"^Season \\d{2}$",
+    target_resolution: Tuple[int, int] = (1920, 1080),
+    valid_extensions: Tuple[str, ...] = (".jpg", ".jpeg", ".png", ".webp"),
+    threshold: int = 5,
+    max_workers: int = 8,
+) -> List[Dict[str, Any]]:
+    """Fast parallel scanning and processing."""
+    base_path = Path(target_dir).resolve()
+    season_regex = re.compile(season_pattern, re.IGNORECASE) if season_pattern else None
+
+    # 1. Fast Directory Discovery using scandir
+    matched_tasks = []
+    try:
+        for entry in os.scandir(base_path):
+            if entry.is_dir() and (not season_regex or season_regex.search(entry.name)):
+                for file_entry in os.scandir(entry.path):
+                    if file_entry.is_file() and file_entry.name.lower().endswith(valid_extensions):
+                        matched_tasks.append((Path(file_entry.path), entry.name))
+    except Exception as err:
+        print(f"❌ Error scanning directory: {err}")
+        return []
+
+    total = len(matched_tasks)
+    if total == 0:
+        print(f"ℹ️ No matching images found in '{base_path}' matching pattern '{season_pattern}'.")
+        return []
+
+    print(f"\\n🚀 Found {total} episode images. Executing with {max_workers} worker threads...")
+    results: List[Dict[str, Any]] = []
+
+    # 2. Parallel Processing
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                process_single_image,
+                path,
+                season,
+                target_resolution,
+                threshold,
+                dry_run,
+            ): path
+            for path, season in matched_tasks
+        }
+
+        for idx, future in enumerate(as_completed(futures), 1):
+            results.append(future.result())
+            print_progress(idx, total, prefix="Progress")
+
+    return results
+
+
+def run_standalone() -> None:
+    """Interactive entry point for Tool 1."""
+    config = load_config()
+    default_dir = config["paths"]["default_tv_series_dir"]
+    opts = config["crop_and_resize"]
+
+    target_dir = prompt_for_directory("TV Series Folder for 16:9 Auto-Crop", default_dir)
+    dry_run = prompt_for_dry_run()
+
+    results = process_series_artwork(
         target_dir=target_dir,
         dry_run=dry_run,
-        season_pattern=r"Season \\d{2}$",
-        target_resolution=(1920, 1080),
-        threshold=5
+        season_pattern=opts["season_folder_regex"],
+        target_resolution=(opts["target_width"], opts["target_height"]),
+        threshold=opts["black_threshold"],
+        max_workers=opts.get("max_workers", 8),
     )
 
-    print("\\n" + "=" * 75)
-    print("  PROCESSING RESULTS")
-    print("=" * 75)
-    print_processing_results(results)
+    rows = [
+        [
+            r.get("season", ""),
+            r.get("filename", ""),
+            r.get("crop_values", "N/A"),
+            r.get("aspect_values", "N/A"),
+            f"{r.get('original_size', '')} -> {r.get('final_size', '')}",
+            r.get("status", ""),
+        ]
+        for r in results
+    ]
+    print_table_report(
+        title="Artwork 16:9 Auto-Crop Summary",
+        headers=["Season", "Filename", "Border Crop", "16:9 Aspect Fix", "Resolution", "Status"],
+        rows=rows,
+        col_widths=[12, 34, 18, 18, 22, 18],
+    )
 
 
 if __name__ == "__main__":
-    main()
+    run_standalone()
 `,
   },
   {
-    path: "run_gui_folder_picker.py",
-    filename: "run_gui_folder_picker.py",
+    path: "sync_mkv_thumbnails.py",
+    filename: "sync_mkv_thumbnails.py",
     category: "examples",
-    description: "GUI Runner with visual Windows/macOS folder chooser dialog.",
+    description: "Tool 2: Optimized MKV Season Thumbnail Synchronizer with fast copying & single-decode resize.",
     code: `"""
-Run Script: Graphical Folder Chooser
-Opens native OS directory picker dialog, then processes artwork.
-Run: python run_gui_folder_picker.py
+Tool 2: Optimized MKV Season Thumbnail Replacer & Compressor
+Finds season thumbnails (e.g. season01-thumb.jpg), optimizes once, and fast-copies to episode .mkv files.
+"""
+
+import os
+import shutil
+from pathlib import Path
+from typing import List, Tuple
+from PIL import Image
+
+from media_config import (
+    load_config,
+    prompt_for_directory,
+    prompt_for_dry_run,
+    print_table_report,
+)
+
+
+def optimize_master_thumbnail(image_path: Path, max_width: int = 1920, max_height: int = 1080, quality: int = 88, dry_run: bool = False) -> bool:
+    """Downscales master thumbnail in-place only if dimensions exceed limits."""
+    try:
+        with Image.open(image_path) as img:
+            w, h = img.size
+            if w <= max_width and h <= max_height:
+                return False
+            
+            if dry_run:
+                print(f"  [DRY RUN] Would downscale master: {image_path.name} ({w}x{h} -> max {max_width}x{max_height})")
+                return True
+
+            img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+            img.save(image_path, quality=quality, optimize=False)
+            return True
+    except Exception as err:
+        print(f"⚠️ Error optimizing {image_path.name}: {err}")
+        return False
+
+
+def replace_thumbnails_in_directory(
+    directory: str,
+    dry_run: bool = False,
+    max_width: int = 1920,
+    max_height: int = 1080,
+    video_extensions: Tuple[str, ...] = (".mkv", ".mp4"),
+    quality: int = 88,
+) -> List[List[str]]:
+    """Scan season folders, downscale master thumbs, and duplicate to episode video targets."""
+    base_dir = Path(directory).resolve()
+    if not base_dir.is_dir():
+        print(f"❌ Error: Directory does not exist: {base_dir}")
+        return []
+
+    report_rows: List[List[str]] = []
+    
+    # Fast iteration over subdirectories
+    subdirs = [Path(entry.path) for entry in os.scandir(base_dir) if entry.is_dir()]
+    if not subdirs:
+        print(f"ℹ️ No subfolders found in {base_dir}")
+        return []
+
+    print(f"\\n📂 Processing {len(subdirs)} season folders in: {base_dir}")
+
+    for subdir in subdirs:
+        folder_name = subdir.name
+        normalized = folder_name.replace(" ", "").lower()
+        thumb_source = base_dir / f"{normalized}-thumb.jpg"
+
+        if not thumb_source.exists():
+            alt_thumb = subdir / f"{normalized}-thumb.jpg"
+            if alt_thumb.exists():
+                thumb_source = alt_thumb
+            else:
+                continue
+
+        # Optimize master thumbnail once per season
+        optimize_master_thumbnail(thumb_source, max_width, max_height, quality, dry_run)
+
+        # Fast discovery of episode files
+        for f in os.scandir(subdir):
+            if f.is_file() and Path(f.name).suffix.lower() in video_extensions:
+                target_thumb = subdir / f"{Path(f.name).stem}-thumb.jpg"
+                
+                if not dry_run:
+                    try:
+                        shutil.copy2(thumb_source, target_thumb)
+                        status = "Synced"
+                    except Exception as e:
+                        status = f"Error: {e}"
+                else:
+                    status = "Dry-Run Sim"
+
+                report_rows.append([
+                    folder_name,
+                    thumb_source.name,
+                    f.name,
+                    target_thumb.name,
+                    status,
+                ])
+
+    return report_rows
+
+
+def run_standalone() -> None:
+    """Interactive entry point for Tool 2."""
+    config = load_config()
+    default_dir = config["paths"]["default_reality_series_dir"]
+    opts = config["thumbnail_replacement"]
+
+    target_dir = prompt_for_directory("Reality / TV Series Folder for Thumbnail Sync", default_dir)
+    dry_run = prompt_for_dry_run()
+
+    rows = replace_thumbnails_in_directory(
+        directory=target_dir,
+        dry_run=dry_run,
+        max_width=opts["max_width"],
+        max_height=opts["max_height"],
+        video_extensions=tuple(opts["video_extensions"]),
+        quality=opts.get("jpeg_quality", 88),
+    )
+
+    print_table_report(
+        title="MKV Thumbnail Sync Report",
+        headers=["Season", "Master Thumbnail", "Video File (.mkv)", "Created Thumbnail", "Status"],
+        rows=rows,
+        col_widths=[12, 22, 34, 34, 14],
+    )
+
+
+if __name__ == "__main__":
+    run_standalone()
+`,
+  },
+  {
+    path: "media_artwork_manager.py",
+    filename: "media_artwork_manager.py",
+    category: "examples",
+    description: "Unified Interactive CLI Suite with interactive menu to run tools independently or together.",
+    code: `"""
+Unified Interactive Media Manager
+Select and execute tools independently with interactive prompts.
 """
 
 import sys
-import os
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from pytoolkit.images import process_images, print_processing_results
+from media_config import load_config
+import crop_and_resize_artwork
+import sync_mkv_thumbnails
 
 
-def main():
-    # Hide Tkinter background root
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes("-topmost", True)
+def show_menu() -> None:
+    while True:
+        print("\\n" + "=" * 70)
+        print("         🎬 MEDIA ARTWORK & THUMBNAIL SUITE")
+        print("=" * 70)
+        print("  [1] 🖼️  Auto-Crop Black Borders & Enforce 16:9 Ratio (1080p)")
+        print("  [2] 🎞️  Sync Season Thumbnail to Episode .MKV Files")
+        print("  [3] ⚡  Run Full Pipeline (Border Crop + Thumbnail Sync)")
+        print("  [0] 🚪  Exit")
+        print("-" * 70)
 
-    print("Opening folder selection window...")
-    target_dir = filedialog.askdirectory(
-        title="Select TV Show / Series Directory",
-        initialdir=r"F:\\MediaStore\\TV\\Series" if os.path.exists(r"F:\\MediaStore\\TV\\Series") else "."
-    )
+        choice = input("Enter your choice [0-3]: ").strip()
 
-    if not target_dir:
-        print("No directory selected. Exiting.")
-        sys.exit(0)
+        if choice == "1":
+            print("\\n--- [1] 16:9 Border Auto-Crop & Resize ---")
+            crop_and_resize_artwork.run_standalone()
 
-    dry_run_response = messagebox.askyesno(
-        "Execution Mode",
-        f"Selected Directory:\\n{target_dir}\\n\\nWould you like to run in DRY-RUN simulation mode first?"
-    )
+        elif choice == "2":
+            print("\\n--- [2] MKV Thumbnail Synchronizer ---")
+            sync_mkv_thumbnails.run_standalone()
 
-    print(f"\\nScanning: {target_dir}")
-    print(f"Mode: {'DRY RUN' if dry_run_response else 'LIVE PROCESSING'}\\n")
+        elif choice == "3":
+            print("\\n--- [3] Full Pipeline Execution ---")
+            print("Step 1: 16:9 Border Auto-Crop")
+            crop_and_resize_artwork.run_standalone()
+            print("\\nStep 2: MKV Thumbnail Sync")
+            sync_mkv_thumbnails.run_standalone()
 
-    results = process_images(
-        target_dir=target_dir,
-        dry_run=dry_run_response,
-        season_pattern=r"Season \\d{2}$",
-        target_resolution=(1920, 1080),
-        threshold=5
-    )
+        elif choice in ("0", "exit", "q"):
+            print("\\n👋 Goodbye!")
+            sys.exit(0)
 
-    print_processing_results(results)
-    messagebox.showinfo("Complete", f"Processed {len(results)} episode images successfully!")
+        else:
+            print("❌ Invalid selection. Please enter 0, 1, 2, or 3.")
 
 
 if __name__ == "__main__":
-    main()
+    show_menu()
 `,
   },
   {
-    path: "run_artwork.bat",
-    filename: "run_artwork.bat",
+    path: "run.bat",
+    filename: "run.bat",
     category: "examples",
-    description: "Windows double-click launcher batch script.",
+    description: "Windows double-click launcher for the Media Suite interactive menu.",
     code: `@echo off
-title PyToolkit Artwork 16:9 Processor
-echo Starting PyToolkit TV Artwork 16:9 Auto-Crop Engine...
-python run_artwork_processor.py
+title Media Artwork Manager
+python media_artwork_manager.py
 pause
 `,
   },
   {
-    path: "run_artwork.sh",
-    filename: "run_artwork.sh",
+    path: "run.sh",
+    filename: "run.sh",
     category: "examples",
-    description: "Linux / macOS double-click launcher bash script.",
+    description: "Linux / macOS double-click terminal launcher.",
     code: `#!/usr/bin/env bash
-echo "Starting PyToolkit TV Artwork 16:9 Auto-Crop Engine..."
-python3 run_artwork_processor.py
-read -p "Press Enter to exit..."
+python3 media_artwork_manager.py
 `,
   },
   {
