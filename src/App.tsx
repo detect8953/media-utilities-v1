@@ -21,7 +21,8 @@ import {
   AlertCircle,
   HelpCircle,
   ExternalLink,
-  Cpu
+  Cpu,
+  Video
 } from 'lucide-react';
 import { PYTHON_LIBRARY_FILES } from './data/pythonLibraryCode';
 
@@ -42,6 +43,7 @@ interface ConfigState {
   thumbnail_replacement: {
     max_width: number;
     max_height: number;
+    ffmpeg_qscale: number;
     video_extensions: string[];
     thumb_suffix: string;
     jpeg_quality: number;
@@ -65,6 +67,7 @@ const DEFAULT_CONFIG: ConfigState = {
   thumbnail_replacement: {
     max_width: 1920,
     max_height: 1080,
+    ffmpeg_qscale: 4,
     video_extensions: ['.mkv', '.mp4'],
     thumb_suffix: '-thumb.jpg',
     jpeg_quality: 88,
@@ -141,8 +144,43 @@ const SAMPLE_THUMBNAIL_RESULTS = [
   },
 ];
 
+const SAMPLE_FFMPEG_RESULTS = [
+  {
+    season: 'Season 01',
+    sourceThumb: 'season01-thumb.jpg',
+    mkvFile: 'Survivor - S01E01 - Marooned.mkv',
+    targetThumb: 'Survivor - S01E01 - Marooned-thumb.jpg',
+    status: 'Synced',
+    ffmpegDetails: 'scale=min(1920,iw):min(1080,ih) | qscale:v=4',
+  },
+  {
+    season: 'Season 01',
+    sourceThumb: 'season01-thumb.jpg',
+    mkvFile: 'Survivor - S01E02 - The Generation Gap.mkv',
+    targetThumb: 'Survivor - S01E02 - The Generation Gap-thumb.jpg',
+    status: 'Synced',
+    ffmpegDetails: 'Cached master downscale',
+  },
+  {
+    season: 'Season 02',
+    sourceThumb: 'season02-thumb.jpg',
+    mkvFile: 'Survivor - S02E01 - Stranded.mkv',
+    targetThumb: 'Survivor - S02E01 - Stranded-thumb.jpg',
+    status: 'Synced',
+    ffmpegDetails: 'Already <= 1920x1080',
+  },
+  {
+    season: 'Season 02',
+    sourceThumb: 'season02-thumb.jpg',
+    mkvFile: 'Survivor - S02E02 - Suspicion.mkv',
+    targetThumb: 'Survivor - S02E02 - Suspicion-thumb.jpg',
+    status: 'Synced',
+    ffmpegDetails: 'Cached master downscale',
+  },
+];
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'manager' | 'crop_tool' | 'thumb_tool' | 'config' | 'code' | 'pycharm'>('manager');
+  const [activeTab, setActiveTab] = useState<'manager' | 'crop_tool' | 'thumb_tool' | 'ffmpeg_tool' | 'config' | 'code' | 'pycharm'>('manager');
   const [config, setConfig] = useState<ConfigState>(DEFAULT_CONFIG);
 
   // Tool 1 state
@@ -152,14 +190,21 @@ export default function App() {
   const [tvRunning, setTvRunning] = useState<boolean>(false);
   const [tvProgress, setTvProgress] = useState<number>(100);
 
-  // Tool 2 state
+  // Tool 2 state (Pillow)
   const [realityDirPrompt, setRealityDirPrompt] = useState<string>(DEFAULT_CONFIG.paths.default_reality_series_dir);
   const [realityDryRun, setRealityDryRun] = useState<boolean>(false);
   const [realityRunning, setRealityRunning] = useState<boolean>(false);
   const [realityProgress, setRealityProgress] = useState<number>(100);
 
+  // Tool 3 state (FFmpeg)
+  const [ffmpegDirPrompt, setFfmpegDirPrompt] = useState<string>(DEFAULT_CONFIG.paths.default_reality_series_dir);
+  const [ffmpegDryRun, setFfmpegDryRun] = useState<boolean>(false);
+  const [ffmpegQscale, setFfmpegQscale] = useState<number>(DEFAULT_CONFIG.thumbnail_replacement.ffmpeg_qscale);
+  const [ffmpegRunning, setFfmpegRunning] = useState<boolean>(false);
+  const [ffmpegProgress, setFfmpegProgress] = useState<number>(100);
+
   // Active Code Viewer
-  const [selectedScriptPath, setSelectedScriptPath] = useState<string>('crop_and_resize_artwork.py');
+  const [selectedScriptPath, setSelectedScriptPath] = useState<string>('ffmpeg_downscale_thumbnails.py');
   const [copiedFile, setCopiedFile] = useState<boolean>(false);
   const [copiedConfig, setCopiedConfig] = useState<boolean>(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
@@ -182,6 +227,16 @@ export default function App() {
       setRealityProgress(i);
     }
     setRealityRunning(false);
+  };
+
+  const handleRunFfmpegTool = async () => {
+    setFfmpegRunning(true);
+    setFfmpegProgress(0);
+    for (let i = 10; i <= 100; i += 25) {
+      await new Promise((r) => setTimeout(r, 120));
+      setFfmpegProgress(i);
+    }
+    setFfmpegRunning(false);
   };
 
   const activeScript = PYTHON_LIBRARY_FILES.find((f) => f.path === selectedScriptPath) || PYTHON_LIBRARY_FILES[0];
@@ -210,7 +265,7 @@ export default function App() {
       });
 
       // Add requirements.txt
-      zip.file('requirements.txt', 'Pillow>=10.0.0\n');
+      zip.file('requirements.txt', 'Pillow>=10.0.0\nffmpeg-python>=0.2.0\ntqdm>=4.66.0\n');
 
       // Add PyCharm .idea Run Configurations
       zip.file(
@@ -285,6 +340,30 @@ export default function App() {
 </component>`
       );
 
+      zip.file(
+        '.idea/runConfigurations/4___FFmpeg_Thumbnail_Downscale_and_Sync.xml',
+        `<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="4. FFmpeg Thumbnail Downscale &amp; Sync" type="PythonConfigurationType" factoryName="Python">
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs><env name="PYTHONUNBUFFERED" value="1" /></envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/ffmpeg_downscale_thumbnails.py" />
+    <option name="PARAMETERS" value="" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="true" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>`
+      );
+
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -314,7 +393,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base tracking-tight text-white font-mono">PyToolkit</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-semibold">
-                  v1.2.0 PyCharm Ready
+                  v1.3.0 FFmpeg Enhanced
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">TV Artwork & MKV Thumbnail Automation Suite</p>
@@ -364,7 +443,18 @@ export default function App() {
                 }`}
               >
                 <Film className="w-3.5 h-3.5" />
-                MKV Thumb Sync
+                MKV Thumb (Pillow)
+              </button>
+              <button
+                onClick={() => setActiveTab('ffmpeg_tool')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeTab === 'ffmpeg_tool'
+                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-sm'
+                    : 'text-purple-400 hover:text-purple-300'
+                }`}
+              >
+                <Video className="w-3.5 h-3.5" />
+                FFmpeg Thumb (q=4)
               </button>
               <button
                 onClick={() => setActiveTab('pycharm')}
@@ -443,10 +533,10 @@ export default function App() {
                   </div>
                   <h3 className="font-bold text-sm text-slate-200">Open Folder in PyCharm</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Extract the downloaded zip, open PyCharm, and click <strong>File → Open...</strong> and select the unzipped project folder.
+                    Extract the downloaded zip or run <code className="text-cyan-300">git pull</code>. Click <strong>File → Open...</strong> and select the project folder.
                   </p>
                   <div className="p-2.5 bg-slate-900 rounded-xl font-mono text-[11px] text-cyan-300 border border-slate-800">
-                    pip install Pillow
+                    pip install -r requirements.txt
                   </div>
                 </div>
 
@@ -455,14 +545,15 @@ export default function App() {
                   <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold font-mono text-sm">
                     2
                   </div>
-                  <h3 className="font-bold text-sm text-slate-200">Pre-Built Run Configurations</h3>
+                  <h3 className="font-bold text-sm text-slate-200">4 Pre-Built Run Configurations</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Look at the <strong>top-right toolbar</strong> in PyCharm. The drop-down contains all 3 pre-built run targets:
+                    Look at the <strong>top-right toolbar</strong> in PyCharm. The drop-down contains all 4 run targets:
                   </p>
                   <div className="space-y-1 text-[11px] font-mono text-slate-300 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
                     <div>▶ 1. 16:9 Artwork Auto-Crop</div>
                     <div>▶ 2. MKV Thumbnail Sync</div>
                     <div>▶ 3. Media Artwork Manager (Menu)</div>
+                    <div className="text-purple-300 font-bold">▶ 4. FFmpeg Thumbnail Downscale & Sync</div>
                   </div>
                 </div>
 
@@ -473,10 +564,10 @@ export default function App() {
                   </div>
                   <h3 className="font-bold text-sm text-slate-200">Direct Right-Click Run</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Alternatively, expand the project tree on the left, right-click any <code className="text-cyan-400">.py</code> file and select:
+                    Alternatively, right-click any <code className="text-cyan-400">.py</code> script file in PyCharm and select:
                   </p>
                   <div className="p-2.5 bg-slate-900 rounded-xl font-mono text-[11px] text-emerald-300 border border-slate-800">
-                    Run 'crop_and_resize_artwork' <br />
+                    Run 'ffmpeg_downscale_thumbnails' <br />
                     <span className="text-slate-500">(Shortcut: Shift + F10)</span>
                   </div>
                 </div>
@@ -490,11 +581,12 @@ export default function App() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   {[
                     { file: 'crop_and_resize_artwork.py', desc: 'Tool 1 (16:9 Crop & 1080p Resizer)' },
-                    { file: 'sync_mkv_thumbnails.py', desc: 'Tool 2 (MKV Season Thumbnail Replacer)' },
+                    { file: 'sync_mkv_thumbnails.py', desc: 'Tool 2 (MKV Season Thumbnail Replacer - Pillow)' },
+                    { file: 'ffmpeg_downscale_thumbnails.py', desc: 'Tool 3 (FFmpeg Thumbnail Downscale & Replace q=4)' },
                     { file: 'media_artwork_manager.py', desc: 'Interactive Menu Launcher' },
-                    { file: 'media_config.py', desc: 'Config Loader & Sanitizer' },
+                    { file: 'media_config.py', desc: 'Config Loader, Sanitizer & 211-char Table' },
                     { file: 'config.json', desc: 'Default Directories & Targets' },
-                    { file: '.idea/runConfigurations/*.xml', desc: 'Auto-detected PyCharm Run Buttons' },
+                    { file: '.idea/runConfigurations/*.xml', desc: '4 Auto-detected PyCharm Run Buttons' },
                   ].map((item) => (
                     <div key={item.file} className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1">
                       <div className="font-mono text-xs font-bold text-cyan-400">{item.file}</div>
@@ -525,18 +617,18 @@ export default function App() {
             </div>
 
             {/* Tool Selection Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Card 1: 16:9 Border Auto-Crop */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-6 transition-all space-y-4 shadow-lg flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
                     <Tv className="w-5 h-5" />
                   </div>
-                  <h3 className="text-lg font-bold text-white">1. 16:9 Border Auto-Crop & 1080p Resizer</h3>
+                  <h3 className="text-base font-bold text-white">1. 16:9 Border Auto-Crop & Resizer</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Scans TV Season folders (<code className="text-cyan-300">Season \d&#123;2&#125;$</code>), strips letterbox/pillarbox bars in a single fast pass, enforces 16:9 ratio, and resizes to 1920×1080 with multithreaded workers.
+                    Scans TV Season folders (<code className="text-cyan-300">Season \d&#123;2&#125;$</code>), strips letterbox/pillarbox bars in a single fast pass, enforces 16:9 ratio, and resizes to 1920×1080.
                   </p>
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400">
+                  <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400">
                     <span className="text-slate-500">Runner:</span> crop_and_resize_artwork.py
                   </div>
                 </div>
@@ -545,21 +637,21 @@ export default function App() {
                   className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-bold transition-all"
                 >
                   <Play className="w-3.5 h-3.5" />
-                  Launch Tool 1 (Interactive)
+                  Launch Tool 1
                 </button>
               </div>
 
-              {/* Card 2: MKV Thumbnail Synchronizer */}
+              {/* Card 2: MKV Thumbnail Synchronizer (Pillow) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 transition-all space-y-4 shadow-lg flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
                     <Film className="w-5 h-5" />
                   </div>
-                  <h3 className="text-lg font-bold text-white">2. MKV Season Thumbnail Replacer</h3>
+                  <h3 className="text-base font-bold text-white">2. MKV Season Thumb Sync (Pillow)</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Finds normalized season thumbnails (<code className="text-blue-300">season01-thumb.jpg</code>), downscales them once per folder, and fast-copies to match all episode <code className="text-blue-300">.mkv</code> files.
+                    Finds normalized season thumbnails (<code className="text-blue-300">season01-thumb.jpg</code>), downscales them, and fast-copies to match all episode <code className="text-blue-300">.mkv</code> files.
                   </p>
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400">
+                  <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400">
                     <span className="text-slate-500">Runner:</span> sync_mkv_thumbnails.py
                   </div>
                 </div>
@@ -568,7 +660,30 @@ export default function App() {
                   className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-bold transition-all"
                 >
                   <Play className="w-3.5 h-3.5" />
-                  Launch Tool 2 (Interactive)
+                  Launch Tool 2
+                </button>
+              </div>
+
+              {/* Card 3: FFmpeg Downscale & Replacer */}
+              <div className="bg-slate-900/90 border border-purple-800/60 hover:border-purple-500/80 rounded-2xl p-6 transition-all space-y-4 shadow-lg flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    <Video className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-white">3. FFmpeg Downscale & Replace (q=4)</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Uses FFmpeg scale filter (<code className="text-purple-300">min(1920,iw)</code>) and <code className="text-purple-300">qscale:v=4</code> to compress season thumbs, then copies to <code className="text-purple-300">.mkv</code> files.
+                  </p>
+                  <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400">
+                    <span className="text-purple-400">Runner:</span> ffmpeg_downscale_thumbnails.py
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('ffmpeg_tool')}
+                  className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-bold transition-all"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  Launch Tool 3
                 </button>
               </div>
             </div>
@@ -589,20 +704,21 @@ export default function App() {
          🎬 MEDIA ARTWORK & THUMBNAIL SUITE
 ======================================================================
   [1] 🖼️  Auto-Crop Black Borders & Enforce 16:9 Ratio (1080p)
-  [2] 🎞️  Sync Season Thumbnail to Episode .MKV Files
-  [3] ⚡  Run Full Pipeline (Border Crop + Thumbnail Sync)
+  [2] 🎞️  Sync Season Thumbnail to Episode .MKV Files (Pillow)
+  [3] 🎬  FFmpeg Downscale & Replace MKV Thumbnails (q=4)
+  [4] ⚡  Run Full Pipeline (Border Crop + FFmpeg Thumbnail Sync)
   [0] 🚪  Exit
 ----------------------------------------------------------------------
-Enter your choice [0-3]: 1
+Enter your choice [0-4]: 3
 
-📁 TV Series Folder for 16:9 Auto-Crop
-   Default: ${config.paths.default_tv_series_dir}
+📁 Reality / TV Series Folder for FFmpeg Thumbnail Downscale & Sync
+   Default: ${config.paths.default_reality_series_dir}
    Enter path (or press Enter to accept default):
    > 
 
 ⚙️  Run in Dry-Run simulation mode? [y/N] (default: No): n
-🚀 Found 4 episode images. Executing with 8 worker threads...
-Progress |████████████████████████████████████████| 100.0% (4/4)`}
+🚀 Found 4 season folders in 'Survivor (2000)'. Executing thumbnail replacement...
+Processing Seasons |██████████████████████████████████████████████████| 100.0% (4/4)`}
               </pre>
             </div>
           </div>
@@ -616,7 +732,7 @@ Progress |███████████████████████�
                 <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
                   <span>crop_and_resize_artwork.py</span>
                   <span>·</span>
-                  <span>Standalone Runner</span>
+                  <span>PyCharm Run Config: 1. 16:9 Artwork Auto-Crop</span>
                 </div>
                 <h2 className="text-xl font-bold text-white mt-1">TV Series 16:9 Border Auto-Crop & Resizer</h2>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -742,7 +858,7 @@ Progress |███████████████████████�
           </div>
         )}
 
-        {/* TAB 3: TOOL 2 - MKV THUMBNAIL SYNC */}
+        {/* TAB 3: TOOL 2 - MKV THUMBNAIL SYNC (Pillow) */}
         {activeTab === 'thumb_tool' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -750,9 +866,9 @@ Progress |███████████████████████�
                 <div className="flex items-center gap-2 text-xs font-mono text-blue-400">
                   <span>sync_mkv_thumbnails.py</span>
                   <span>·</span>
-                  <span>Standalone Runner</span>
+                  <span>PyCharm Run Config: 2. MKV Thumbnail Sync</span>
                 </div>
-                <h2 className="text-xl font-bold text-white mt-1">MKV Season Thumbnail Replacer & Compressor</h2>
+                <h2 className="text-xl font-bold text-white mt-1">MKV Season Thumbnail Replacer & Compressor (Pillow)</h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Downscales master season thumbnail in-place and duplicates it across all episode <code className="text-blue-300">.mkv</code> files.
                 </p>
@@ -857,7 +973,137 @@ Progress |███████████████████████�
           </div>
         )}
 
-        {/* TAB 4: CONFIGURATION MANAGER */}
+        {/* TAB 4: NEW TOOL 3 - FFMPEG DOWNSCALE & REPLACER */}
+        {activeTab === 'ffmpeg_tool' && (
+          <div className="bg-slate-900 border border-purple-900/40 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-mono text-purple-400">
+                  <span>ffmpeg_downscale_thumbnails.py</span>
+                  <span>·</span>
+                  <span>PyCharm Run Config: 4. FFmpeg Thumbnail Downscale & Sync</span>
+                </div>
+                <h2 className="text-xl font-bold text-white mt-1">FFmpeg Season Thumbnail Downscaler & MKV Replacer</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Applies FFmpeg scale filter (<code className="text-purple-300">min(1920,iw)</code>) and <code className="text-purple-300">qscale:v={ffmpegQscale}</code> to compress master season thumbs, then duplicates them to all <code className="text-purple-300">.mkv</code> files.
+                </p>
+              </div>
+
+              <button
+                onClick={handleRunFfmpegTool}
+                disabled={ffmpegRunning}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-xl transition-all ${
+                  ffmpegRunning
+                    ? 'bg-slate-800 text-slate-500 cursor-wait'
+                    : 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white shadow-md shadow-purple-500/20 active:scale-95'
+                }`}
+              >
+                <Play className={`w-4 h-4 fill-current ${ffmpegRunning ? 'animate-spin' : ''}`} />
+                {ffmpegRunning ? `FFmpeg Processing ${ffmpegProgress}%` : 'Execute FFmpeg Sync'}
+              </button>
+            </div>
+
+            {/* Directory Input Prompt */}
+            <div className="p-5 bg-slate-950 rounded-xl border border-purple-500/30 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-200 uppercase tracking-wider">
+                  <FolderOpen className="w-4 h-4 text-purple-400" />
+                  Target Series Directory Prompt
+                </div>
+                <span className="text-[11px] text-purple-400 font-mono">FFmpeg Downscale Target</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-slate-400">
+                  Enter series directory with season subfolders:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={ffmpegDirPrompt}
+                    onChange={(e) => setFfmpegDirPrompt(e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-700 focus:border-purple-400 rounded-xl px-3.5 py-2 text-xs font-mono text-purple-300 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => setFfmpegDirPrompt(config.paths.default_reality_series_dir)}
+                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 rounded-xl"
+                  >
+                    Reset Default
+                  </button>
+                </div>
+              </div>
+
+              {/* FFmpeg Parameters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-900">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">FFmpeg JPEG Quality (qscale:v)</span>
+                    <span className="font-mono text-purple-400 font-bold">{ffmpegQscale} (Lower = Better Quality)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="2"
+                    max="6"
+                    value={ffmpegQscale}
+                    onChange={(e) => setFfmpegQscale(Number(e.target.value))}
+                    className="w-full accent-purple-400"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-6 pt-4">
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={ffmpegDryRun}
+                      onChange={(e) => setFfmpegDryRun(e.target.checked)}
+                      className="rounded border-slate-700 text-purple-500 focus:ring-purple-500"
+                    />
+                    <span>Dry-Run Simulation (No file changes)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Table */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-mono text-slate-400">
+                <span>Directory: <span className="text-purple-300">{ffmpegDirPrompt}</span></span>
+                <span className="text-emerald-400">Output Width: 211 chars | Filename Col: 80 chars</span>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto shadow-inner">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] bg-slate-900/60">
+                      <th className="py-3 px-4">Season</th>
+                      <th className="py-3 px-4">Master Thumbnail</th>
+                      <th className="py-3 px-4">Video File (.MKV) [80 chars]</th>
+                      <th className="py-3 px-4">Created Episode Thumb</th>
+                      <th className="py-3 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {SAMPLE_FFMPEG_RESULTS.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-900/40">
+                        <td className="py-3 px-4 text-slate-400">{row.season}</td>
+                        <td className="py-3 px-4 text-purple-300">{row.sourceThumb}</td>
+                        <td className="py-3 px-4 text-slate-200">{row.mkvFile}</td>
+                        <td className="py-3 px-4 text-emerald-400 font-bold">{row.targetThumb}</td>
+                        <td className="py-3 px-4">
+                          <span className="text-emerald-400 text-[11px] font-sans font-semibold">
+                            ✓ {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: CONFIGURATION MANAGER */}
         {activeTab === 'config' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -938,17 +1184,31 @@ Progress |███████████████████████�
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Season Subfolder Regex</label>
-                  <input
-                    type="text"
-                    value={config.crop_and_resize.season_folder_regex}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      crop_and_resize: { ...config.crop_and_resize, season_folder_regex: e.target.value }
-                    })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-amber-300"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">FFmpeg qscale:v Quality</label>
+                    <input
+                      type="number"
+                      value={config.thumbnail_replacement.ffmpeg_qscale}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        thumbnail_replacement: { ...config.thumbnail_replacement, ffmpeg_qscale: Number(e.target.value) }
+                      })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-300"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Max Workers (Threads)</label>
+                    <input
+                      type="number"
+                      value={config.crop_and_resize.max_workers}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        crop_and_resize: { ...config.crop_and_resize, max_workers: Number(e.target.value) }
+                      })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -968,12 +1228,13 @@ Progress |███████████████████████�
           </div>
         )}
 
-        {/* TAB 5: SCRIPT SOURCE CODE EXPLORER */}
+        {/* TAB 6: SCRIPT SOURCE CODE EXPLORER */}
         {activeTab === 'code' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="p-4 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 overflow-x-auto">
                 {[
+                  'ffmpeg_downscale_thumbnails.py',
                   'crop_and_resize_artwork.py',
                   'sync_mkv_thumbnails.py',
                   'media_artwork_manager.py',

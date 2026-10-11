@@ -28,6 +28,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "thumbnail_replacement": {
         "max_width": 1920,
         "max_height": 1080,
+        "ffmpeg_qscale": 4,
         "video_extensions": [".mkv", ".mp4"],
         "thumb_suffix": "-thumb.jpg",
         "jpeg_quality": 88,
@@ -84,7 +85,7 @@ def prompt_for_dry_run() -> bool:
 
 
 def print_progress(current: int, total: int, prefix: str = "Processing", length: int = 50) -> None:
-    """Memory-efficient single-line progress indicator."""
+    """Memory-efficient single-line progress indicator identical across tools."""
     if total == 0:
         return
     pct = 100.0 * current / total
@@ -115,6 +116,8 @@ def print_table_report(title: str, headers: List[str], rows: List[List[str]], co
     # Render Header
     header_cells = [f"{str(h)[:w]:<{w}}" for h, w in zip(headers, col_widths)]
     header_str = "| " + " | ".join(header_cells) + " |"
+    if len(header_str) < total_width:
+        header_str = header_str[:-1] + " " * (total_width - len(header_str)) + "|"
     print(header_str[:total_width])
     print(sub_border)
 
@@ -122,6 +125,8 @@ def print_table_report(title: str, headers: List[str], rows: List[List[str]], co
     for row in rows:
         row_cells = [f"{str(val)[:w]:<{w}}" for val, w in zip(row, col_widths)]
         row_str = "| " + " | ".join(row_cells) + " |"
+        if len(row_str) < total_width:
+            row_str = row_str[:-1] + " " * (total_width - len(row_str)) + "|"
         print(row_str[:total_width])
 
     print(f"{sub_border}\n")
